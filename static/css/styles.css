@@ -627,3 +627,35 @@ footer {
 footer p {
   text-align: center;
 }
+
+/* Import media queries */
+@import url("mediaqueries.css");
+
+/* Mobile-first responsive adjustments */
+@media screen and (max-width: 768px) {
+  /* Show hamburger menu on mobile */
+  #hamburger-nav {
+    display: flex;
+  }
+  
+  /* Hide desktop nav on mobile */
+  #desktop-nav {
+    display: none;
+  }
+  
+  /* Adjust scroll padding for mobile nav */
+  html {
+    scroll-padding-top: 80px;
+  }
+}
+
+/* Ensure proper mobile viewport */
+@media screen and (max-width: 480px) {
+  .part {
+    margin: 1rem 0.5rem 0;
+  }
+  
+  section {
+    margin: 1rem 0.5rem 0;
+  }
+}

@@ -1,6 +1,9 @@
 services:
   - type: web
-    name: COLLEGE_PROJECT
+    name: mindmate
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn COLLEGE_PROJECT.wsgi:application
+    startCommand: gunicorn app:app
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false

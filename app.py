@@ -1,11 +1,12 @@
 from flask import Flask, request, jsonify, render_template
 import google.generativeai as genai
 import json
+import os
 
 app = Flask(__name__)
 
-# Replace with your actual API key
-API_KEY = 'abcd'
+# Get API key from environment variable
+API_KEY = os.environ.get('GEMINI_API_KEY', 'abcd')  # Fallback for development
 genai.configure(api_key=API_KEY)
 
 # Load the dataset
