@@ -1,13 +1,35 @@
 from flask import Flask, request, jsonify, render_template
-import google.generativeai as genai
+from google import genai
+from dotenv import load_dotenv
 import json
 import os
+import logging
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+load_dotenv()
 app = Flask(__name__)
 
 # Get API key from environment variable
-API_KEY = os.environ.get('GEMINI_API_KEY', 'abcd')  # Fallback for development
-genai.configure(api_key=API_KEY)
+API_KEY = os.environ.get('GEMINI_API_KEY', 'abcd')
+logger.info(f"API Key loaded: {'Yes' if API_KEY and API_KEY != 'abcd' else 'No (using fallback)'}")
+
+# Initialize Gemini client
+client = None
+if API_KEY and API_KEY != 'abcd':
+    try:
+        client = genai.Client(api_key=API_KEY, http_options={'api_version': 'v1alpha'})
+        logger.info("Gemini client initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize Gemini client: {e}")
+        client = None
+else:
+    logger.error("No valid API key found! Please set GEMINI_API_KEY in .env file")
 
 # Load the dataset
 with open('mental_health_data.json', 'r') as file:
@@ -24,8 +46,8 @@ for intent in data['intents']:
             })
 
 class FineTunedChat:
-    def __init__(self, model, training_data):
-        self.model = model
+    def __init__(self, client, training_data):
+        self.client = client
         self.training_data = training_data
 
     def get_response(self, user_input):
@@ -33,12 +55,31 @@ class FineTunedChat:
             if user_input.lower() in item['input'].lower():
                 return item['output']
         return None  # Return None if no exact match found
+    
+    def generate_gemini_response(self, user_input, instruction):
+        try:
+            response = self.client.models.generate_content(
+                model='gemini-2.0-flash',
+                contents=instruction + user_input,
+            )
+            return response.text
+        except Exception as e:
+            logger.error(f"Error calling Gemini API: {str(e)}")
+            return "I'm sorry, I'm having trouble connecting right now. Please try again later."
 
-# Initialize the Google Gemini LLM
-model = genai.GenerativeModel('gemini-pro')
-chat = model.start_chat(history=[])
+# Initialize variables for the new client approach
+fine_tuned_chat = None
 
-fine_tuned_chat = FineTunedChat(model, training_data)
+# Only try to initialize if we have a valid client
+if client:
+    try:
+        fine_tuned_chat = FineTunedChat(client, training_data)
+        logger.info("Fine-tuned chat initialized successfully with new client")
+    except Exception as e:
+        logger.error(f"Failed to initialize fine-tuned chat: {e}")
+        fine_tuned_chat = None
+else:
+    logger.error("No valid client - Gemini features disabled")
 
 @app.route('/')
 def home():
@@ -79,11 +120,20 @@ def ChatBot():
 @app.route('/message', methods=['POST'])
 def message():
     user_input = request.json.get('message')
+    logger.info(f"User Input: {user_input}")
+
+    # Check if fine_tuned_chat is available
+    if not fine_tuned_chat:
+        logger.error("Fine-tuned chat not available")
+        return jsonify({'reply': "I'm sorry, the AI service is currently unavailable. Please try again later."})
+
     response_text = fine_tuned_chat.get_response(user_input)
 
     if response_text:
+        logger.info("Using response from training data")
         reply = response_text
     else:
+        logger.info("No match in training data, calling Gemini API")
         instruction = '''You are a mental health specialist providing support in a conversational manner. When responding to users, aim to create a warm and empathetic interaction, much like a dialogue between a mental health professional and a patient. 
 
                 1. **Show Empathy**: Acknowledge the user's feelings and concerns with empathy. Use supportive and reassuring language.
@@ -93,9 +143,11 @@ def message():
                 5. **Respectful Engagement**: Engage with users respectfully and maintain a professional tone, even if the conversation becomes challenging.
 
                 Respond to the user's query accordingly.'''
-        response = chat.send_message(instruction + user_input)
-        reply = response.text
-
+        
+        reply = fine_tuned_chat.generate_gemini_response(user_input, instruction)
+        logger.info(f"Gemini API Response: {reply[:100]}...")
+    
+    logger.info(f"Bot Reply: {reply[:100]}...")
     return jsonify({'reply': reply})
 
 if __name__ == '__main__':
