@@ -29,7 +29,7 @@ MindMate is a comprehensive mental health web application designed to promote me
 - **Backend:** Flask
 - **Data Visualization:** Plotly, Matplotlib
 - **Machine Learning:** Google Gemini LLM
-- **Database:** JSON files
+
 
 ## License
 This project is licensed under the MM License - see the LICENSE file for details.
